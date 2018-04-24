@@ -13,34 +13,47 @@
 #include <string>
 #include <memory>
 
-static void help()
+static void usage(const char * program_name = "spike")
 {
-  fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
-  fprintf(stderr, "Host Options:\n");
-  fprintf(stderr, "  -p<n>                 Simulate <n> processors [default 1]\n");
-  fprintf(stderr, "  -m<n>                 Provide <n> MiB of target memory [default 2048]\n");
-  fprintf(stderr, "  -m<a:m,b:n,...>       Provide memory regions of size m and n bytes\n");
-  fprintf(stderr, "                          at base addresses a and b (with 4 KiB alignment)\n");
-  fprintf(stderr, "  -d                    Interactive debug mode\n");
-  fprintf(stderr, "  -g                    Track histogram of PCs\n");
-  fprintf(stderr, "  -l                    Generate a log of execution\n");
-  fprintf(stderr, "  -h                    Print this help message\n");
-  fprintf(stderr, "  -H                    Start halted, allowing a debugger to connect\n");
-  fprintf(stderr, "  --isa=<name>          RISC-V ISA string [default %s]\n", DEFAULT_ISA);
-  fprintf(stderr, "  --pc=<address>        Override ELF entry point\n");
-  fprintf(stderr, "  --hartids=<a,b,...>   Explicitly specify hartids, default is 0,1,...\n");
-  fprintf(stderr, "  --ic=<S>:<W>:<B>      Instantiate a cache model with S sets,\n");
-  fprintf(stderr, "  --dc=<S>:<W>:<B>        W ways, and B-byte blocks (with S and\n");
-  fprintf(stderr, "  --l2=<S>:<W>:<B>        B both powers of 2).\n");
-  fprintf(stderr, "  --extension=<name>    Specify RoCC Extension\n");
-  fprintf(stderr, "  --extlib=<name>       Shared library to load\n");
-  fprintf(stderr, "  --rbb-port=<port>     Listen on <port> for remote bitbang connection\n");
-  fprintf(stderr, "  --dump-dts            Print device tree string and exit\n");
-  fprintf(stderr, "  --progsize=<words>    Progsize for the debug module [default 2]\n");
-  fprintf(stderr, "  --debug-sba=<bits>    Debug bus master supports up to "
-      "<bits> wide accesses [default 0]\n");
-  fprintf(stderr, "  --debug-auth          Debug module requires debugger to authenticate\n");
-  exit(1);
+  fprintf(stdout, "Usage: %s [SPIKE OPTION]... [HOST OPTION]... BINARY [TARGET OPTION]...\n",
+          program_name);
+  /* Spcaing template                                                           | Nothing beyond here (80 chars)
+  -x, --xxxxx-yyyyy        Here is my long option description that is\n\
+       +xxxxx-yyyyy          capitablized and indendted and also takes a +arg\n\
+  */
+  fprintf(stdout, "Run a BINARY on Spike (the RISC-V ISA Simulator).\n\
+\n\
+Mandatory arguments to long options are mandatory for short options too.\n\
+\n\
+SPIKE OPTIONS\n\
+  -p N                     Simulate N processors (default: 1)\n\
+  -m N                     Provide N MiB of target memory (default: 2048)\n\
+  -m A:M,B:N,...           Provide memory regions of size M and N bytes at base\n\
+                             address A and B (with 4KiB alignment)\n\
+  -d                       Interactive debug mode\n\
+  -g                       Track historgram of PCs\n\
+  -l                       Generate a log of execution\n\
+  -h                       Print this help message and exit\n\
+  -H                       Start halted, allowing a debugger to connect\n\
+      --isa=NAME           RISC-V ISA string to use (default: %s)\n\
+      --pc=ADDRESS         Override ELF entry point\n\
+      --hartids=A,B,...    Explicitly specify hartids, default is 0,1,...\n\
+      --ic=S:W:B           Instantiate an instruction cache with S sets, W ways,\n\
+                             and B-byte blocks (with S and B both powers of 2)\n\
+      --dc=S:W:B           Instantiate a data cache with S sets, W ways,\n\
+                             and B-byte blocks (with S and B both powers of 2)\n\
+      --l2=S:W:B           Instantiate an L2 cache with S sets, W ways,\n\
+                             and B-byte blocks (with S and B both powers of 2)\n\
+      --extension=NAME     Specify RoCC extension NAME to use\n\
+      --extlib=NAME        Load shared library NAME\n\
+      --rbb-port=PORT      Listen on PORT for remote bitbang connection\n\
+      --dump-dts           Pirnt device tree string and exit\n\
+      --progsize=WORDS     Set program size for the debug module (default: 2)\n\
+      --debug-sba=BITS     Set debug bus master to support up to BITS wide\n\
+                             accesses (default: 0)\n\
+      --debug-auth         Set debvg module to require authentication\n\
+", DEFAULT_ISA);
+  fputs("\n" HTIF_USAGE_OPTIONS, stdout);
 }
 
 static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
@@ -59,16 +72,13 @@ static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
   std::vector<std::pair<reg_t, mem_t*>> res;
   while (true) {
     auto base = strtoull(arg, &p, 0);
-    if (!*p || *p != ':')
-      help();
+    if (!*p || *p != ':') { usage(); exit(1); }
     auto size = strtoull(p + 1, &p, 0);
-    if ((size | base) % PGSIZE != 0)
-      help();
+    if ((size | base) % PGSIZE != 0) { usage(); exit(1); }
     res.push_back(std::make_pair(reg_t(base), new mem_t(size)));
     if (!*p)
       break;
-    if (*p != ',')
-      help();
+    if (*p != ',') { usage(); exit(1); }
     arg = p + 1;
   }
   return res;
@@ -109,8 +119,8 @@ int main(int argc, char** argv)
   };
 
   option_parser_t parser;
-  parser.help(&help);
-  parser.option('h', 0, 0, [&](const char* s){help();});
+  parser.help([&](void){ usage(); exit(1); });
+  parser.option('h', 0, 0, [&](const char* s){usage(); exit(1);});
   parser.option('d', 0, 0, [&](const char* s){debug = true;});
   parser.option('g', 0, 0, [&](const char* s){histogram = true;});
   parser.option('l', 0, 0, [&](const char* s){log = true;});
@@ -159,8 +169,7 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  if (!*argv1)
-    help();
+  if (!*argv1) { usage(); exit(1); }
 
   if (ic && l2) ic->set_miss_handler(&*l2);
   if (dc && l2) dc->set_miss_handler(&*l2);
